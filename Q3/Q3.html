@@ -9,5 +9,490 @@
 </head>
 
 <body>
-  <div id='signature'>gburdell3</div>
+  <script>
+  (function() {
+    var margin = {top: 60, right: 140, bottom: 50, left: 70},
+        width = 900,
+        height = 500,
+        innerWidth = width - margin.left - margin.right,
+        innerHeight = height - margin.top - margin.bottom;
+
+    var svg = d3.select("body").insert("svg", "#signature")
+        .attr("id", "svg-a")
+        .attr("width", width)
+        .attr("height", height);
+
+    svg.append("text")
+        .attr("id", "title-a")
+        .attr("x", width / 2)
+        .attr("y", margin.top / 2)
+        .attr("text-anchor", "middle")
+        .style("font-weight", "bold")
+        .text("Number of Ratings 2016-2020");
+
+    var g = svg.append("g")
+        .attr("id", "plot-a")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    var parseDate = d3.timeParse("%Y-%m-%d");
+    var games = ['Catan','Dominion','Codenames','Terraforming Mars','Gloomhaven','Magic: The Gathering','Dixit','Monopoly'];
+
+    d3.dsv(",", "boardgame_ratings.csv").then(function(raw) {
+      raw.forEach(function(d) { d.date = parseDate(d.date); });
+
+      var series = games.map(function(name) {
+        var key = name + "=count";
+        return {
+          name: name,
+          values: raw.map(function(d) { return { date: d.date, value: +d[key] }; })
+        };
+      });
+
+      var x = d3.scaleTime().range([0, innerWidth]);
+      var y = d3.scaleLinear().range([innerHeight, 0]);
+
+      x.domain(d3.extent(raw, function(d) { return d.date; }));
+      y.domain([0, d3.max(series, function(s) { return d3.max(s.values, function(v) { return v.value; }); })]);
+
+      var color = d3.scaleOrdinal(d3.schemeCategory10).domain(games);
+
+      var xAxis = d3.axisBottom(x)
+        .ticks(d3.timeMonth.every(3))
+        .tickFormat(d3.timeFormat("%b %y"));
+
+      var yAxis = d3.axisLeft(y);
+
+      var line = d3.line()
+        .x(function(d) { return x(d.date); })
+        .y(function(d) { return y(d.value); });
+
+      var linesG = g.append("g").attr("id", "lines-a");
+
+      var seriesG = linesG.selectAll(".series")
+        .data(series)
+        .enter().append("g")
+        .attr("class", "series");
+
+      seriesG.append("path")
+        .attr("fill", "none")
+        .attr("stroke-width", 2)
+        .attr("stroke", function(d) { return color(d.name); })
+        .attr("d", function(d) { return line(d.values); });
+
+      seriesG.append("text")
+        .datum(function(d) { return { name: d.name, last: d.values[d.values.length - 1] }; })
+        .attr("x", function(d) { return x(d.last.date) + 6; })
+        .attr("y", function(d) { return y(d.last.value); })
+        .attr("dominant-baseline", "middle")
+        .attr("fill", function(d) { return color(d.name); })
+        .text(function(d) { return d.name; });
+        
+      var xAxisG = g.append("g")
+        .attr("id", "x-axis-a")
+        .attr("transform", "translate(0," + innerHeight + ")")
+        .call(xAxis);
+
+      xAxisG.append("text")
+        .attr("x", innerWidth / 2)
+        .attr("y", 35)
+        .attr("text-anchor", "middle")
+        .text("Month");
+
+      var yAxisG = g.append("g")
+        .attr("id", "y-axis-a")
+        .call(yAxis);
+
+      yAxisG.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -innerHeight / 2)
+        .attr("y", -50)
+        .attr("text-anchor", "middle")
+        .text("Num of Ratings");
+
+      // Part 2: Chart with ranking circle markers every 3 months
+      var svgB = d3.select("body").insert("svg", "#signature")
+          .attr("id", "svg-b")
+          .attr("width", width)
+          .attr("height", height);
+
+      svgB.append("text")
+          .attr("id", "title-b")
+          .attr("x", width / 2)
+          .attr("y", margin.top / 2)
+          .attr("text-anchor", "middle")
+          .style("font-weight", "bold")
+          .text("Number of Ratings 2016-2020 with Rankings");
+
+      var gB = svgB.append("g")
+          .attr("id", "plot-b")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      var xB = d3.scaleTime().range([0, innerWidth]);
+      var yB = d3.scaleLinear().range([innerHeight, 0]);
+
+      xB.domain(d3.extent(raw, function(d) { return d.date; }));
+      yB.domain([0, d3.max(series, function(s) { return d3.max(s.values, function(v) { return v.value; }); })]);
+
+      var xAxisB = d3.axisBottom(xB)
+        .ticks(d3.timeMonth.every(3))
+        .tickFormat(d3.timeFormat("%b %y"));
+      var yAxisB = d3.axisLeft(yB);
+
+      var lineB = d3.line()
+        .x(function(d) { return xB(d.date); })
+        .y(function(d) { return yB(d.value); });
+
+      var linesGB = gB.append("g").attr("id", "lines-b");
+
+      var seriesGB = linesGB.selectAll(".series")
+        .data(series)
+        .enter().append("g")
+        .attr("class", "series");
+
+      seriesGB.append("path")
+        .attr("fill", "none")
+        .attr("stroke-width", 2)
+        .attr("stroke", function(d) { return color(d.name); })
+        .attr("d", function(d) { return lineB(d.values); });
+
+      seriesGB.append("text")
+        .datum(function(d) { return { name: d.name, last: d.values[d.values.length - 1] }; })
+        .attr("x", function(d) { return xB(d.last.date) + 6; })
+        .attr("y", function(d) { return yB(d.last.value); })
+        .attr("dominant-baseline", "middle")
+        .attr("fill", function(d) { return color(d.name); })
+        .text(function(d) { return d.name; });
+
+      // Create circle markers with ranking text for selected games at 3-month intervals (aligned to axis ticks)
+      var targetGames = ['Catan','Codenames','Terraforming Mars','Gloomhaven'];
+
+      // Map date -> raw row for quick rank lookup
+      var rowByTime = {};
+      raw.forEach(function(r) { rowByTime[+r.date] = r; });
+
+      var markersData = [];
+      targetGames.forEach(function(name) {
+        var s = series.filter(function(d) { return d.name === name; })[0];
+        var rankKey = name + "=rank";
+        s.values.forEach(function(v) {
+          var m = v.date.getMonth(); // 0-based months
+          if (m % 3 === 0) { // Jan, Apr, Jul, Oct
+            var row = rowByTime[+v.date];
+            markersData.push({
+              name: name,
+              date: v.date,
+              value: v.value,
+              rank: row ? +row[rankKey] : null
+            });
+          }
+        });
+      });
+
+      var markersGB = gB.append("g").attr("id", "symbols-b");
+
+      var markerG = markersGB.selectAll(".marker")
+        .data(markersData)
+        .enter().append("g")
+        .attr("class", "marker")
+        ;
+
+      markerG.append("circle")
+        .attr("r", 5)
+        .attr("cx", function(d) { return xB(d.date); })
+        .attr("cy", function(d) { return yB(d.value); })
+        .attr("fill", function(d) { return color(d.name); })
+        .attr("stroke", function(d) { return color(d.name); })
+        .attr("stroke-width", 2);
+
+      markerG.append("text")
+        .attr("x", function(d) { return xB(d.date); })
+        .attr("y", function(d) { return yB(d.value) - 8; })
+        .attr("text-anchor", "middle")
+        .attr("font-size", "10px")
+        .attr("fill", function(d) { return color(d.name); })
+        .text(function(d) { return d.rank; });
+
+      // Axes on top (lines added first)
+      var xAxisGB = gB.append("g")
+        .attr("id", "x-axis-b")
+        .attr("transform", "translate(0," + innerHeight + ")")
+        .call(xAxisB);
+
+      xAxisGB.append("text")
+        .attr("x", innerWidth / 2)
+        .attr("y", 35)
+        .attr("text-anchor", "middle")
+        .text("Month");
+
+      var yAxisGB = gB.append("g")
+        .attr("id", "y-axis-b")
+        .call(yAxisB);
+
+      yAxisGB.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -innerHeight / 2)
+        .attr("y", -50)
+        .attr("text-anchor", "middle")
+        .text("Num of Ratings");
+
+      // Legend explaining the circle markers
+      var legendB = svgB.append("g")
+        .attr("id", "legend-b")
+        .attr("transform", "translate(" + (width - 55) + "," + (height - 45) + ")");
+
+      legendB.append("circle")
+        .attr("r", 5)
+        .attr("cx", 0)
+        .attr("cy", 0)
+        .attr("fill", "#fff")
+        .attr("stroke", "#333")
+        .attr("stroke-width", 2);
+
+      legendB.append("text")
+        .attr("x", 0)
+        .attr("y", -8)
+        .attr("text-anchor", "middle")
+        .text("rank");
+
+      // Part 3: Two additional charts with sqrt and log y-scales
+      var yMax = d3.max(series, function(s) { return d3.max(s.values, function(v) { return v.value; }); });
+
+      // SQRT Y-SCALE CHART
+      var svgC = d3.select("body").insert("svg", "#signature")
+          .attr("id", "svg-c-1")
+          .attr("width", width)
+          .attr("height", height);
+
+      svgC.append("text")
+          .attr("id", "title-c-1")
+          .attr("x", width / 2)
+          .attr("y", margin.top / 2)
+          .attr("text-anchor", "middle")
+          .style("font-weight", "bold")
+          .text("Number of Ratings 2016-2020 with Rankings (Square RootScale)");
+
+      var gC = svgC.append("g")
+          .attr("id", "plot-c-1")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      var xC = d3.scaleTime().range([0, innerWidth]);
+      var yC = d3.scaleSqrt().range([innerHeight, 0]);
+      xC.domain(d3.extent(raw, function(d) { return d.date; }));
+      yC.domain([0, yMax]);
+
+      var xAxisC = d3.axisBottom(xC)
+        .ticks(d3.timeMonth.every(3))
+        .tickFormat(d3.timeFormat("%b %y"));
+      var yAxisC = d3.axisLeft(yC);
+
+      var lineC = d3.line()
+        .x(function(d) { return xC(d.date); })
+        .y(function(d) { return yC(d.value); });
+
+      var linesGC = gC.append("g").attr("id", "lines-c-1");
+
+      var seriesGC = linesGC.selectAll(".series")
+        .data(series)
+        .enter().append("g")
+        .attr("class", "series");
+
+      seriesGC.append("path")
+        .attr("fill", "none")
+        .attr("stroke-width", 2)
+        .attr("stroke", function(d) { return color(d.name); })
+        .attr("d", function(d) { return lineC(d.values); });
+
+      seriesGC.append("text")
+        .datum(function(d) { return { name: d.name, last: d.values[d.values.length - 1] }; })
+        .attr("x", function(d) { return xC(d.last.date) + 6; })
+        .attr("y", function(d) { return yC(d.last.value); })
+        .attr("dominant-baseline", "middle")
+        .attr("fill", function(d) { return color(d.name); })
+        .text(function(d) { return d.name; });
+
+      var markersGC = gC.append("g").attr("id", "symbols-c-1");
+      var markerGC = markersGC.selectAll(".marker")
+        .data(markersData)
+        .enter().append("g")
+        .attr("class", "marker");
+
+      markerGC.append("circle")
+        .attr("r", 5)
+        .attr("cx", function(d) { return xC(d.date); })
+        .attr("cy", function(d) { return yC(d.value); })
+        .attr("fill", function(d) { return color(d.name); })
+        .attr("stroke", function(d) { return color(d.name); })
+        .attr("stroke-width", 2);
+
+      markerGC.append("text")
+        .attr("x", function(d) { return xC(d.date); })
+        .attr("y", function(d) { return yC(d.value) - 8; })
+        .attr("text-anchor", "middle")
+        .attr("font-size", "10px")
+        .attr("fill", function(d) { return color(d.name); })
+        .text(function(d) { return d.rank; });
+
+      var xAxisGC = gC.append("g")
+        .attr("id", "x-axis-c-1")
+        .attr("transform", "translate(0," + innerHeight + ")")
+        .call(xAxisC);
+
+      xAxisGC.append("text")
+        .attr("x", innerWidth / 2)
+        .attr("y", 35)
+        .attr("text-anchor", "middle")
+        .text("Month");
+
+      var yAxisGC = gC.append("g")
+        .attr("id", "y-axis-c-1")
+        .call(yAxisC);
+
+      yAxisGC.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -innerHeight / 2)
+        .attr("y", -50)
+        .attr("text-anchor", "middle")
+        .text("Num of Ratings");
+
+      var legendC = svgC.append("g")
+        .attr("id", "legend-c-1")
+        .attr("transform", "translate(" + (width - 55) + "," + (height - 45) + ")");
+
+      legendC.append("circle")
+        .attr("r", 5)
+        .attr("cx", 0)
+        .attr("cy", 0)
+        .attr("fill", "#fff")
+        .attr("stroke", "#333")
+        .attr("stroke-width", 2);
+
+      legendC.append("text")
+        .attr("x", 0)
+        .attr("y", -8)
+        .attr("text-anchor", "middle")
+        .text("rank");
+
+      // LOG Y-SCALE CHART
+      var svgD = d3.select("body").insert("svg", "#signature")
+          .attr("id", "svg-c-2")
+          .attr("width", width)
+          .attr("height", height);
+
+      svgD.append("text")
+          .attr("id", "title-c-2")
+          .attr("x", width / 2)
+          .attr("y", margin.top / 2)
+          .attr("text-anchor", "middle")
+          .style("font-weight", "bold")
+          .text("Number of Ratings 2016-2020 with Rankings (Log Scale)");
+
+      var gD = svgD.append("g")
+          .attr("id", "plot-c-2")
+          .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      var xD = d3.scaleTime().range([0, innerWidth]);
+      var yD = d3.scaleLog().range([innerHeight, 0]);
+      xD.domain(d3.extent(raw, function(d) { return d.date; }));
+
+      var minPositive = d3.min(series, function(s) { return d3.min(s.values, function(v) { return v.value > 0 ? v.value : Infinity; }); });
+      if (!isFinite(minPositive) || minPositive <= 0) { minPositive = 1; }
+      yD.domain([1, yMax]);
+
+      var xAxisD = d3.axisBottom(xD)
+        .ticks(d3.timeMonth.every(3))
+        .tickFormat(d3.timeFormat("%b %y"));
+      var yAxisD = d3.axisLeft(yD);
+
+      var lineD = d3.line()
+        .x(function(d) { return xD(d.date); })
+        .y(function(d) { return yD(d.value); });
+
+      var linesGD = gD.append("g").attr("id", "lines-c-2");
+
+      var seriesGD = linesGD.selectAll(".series")
+        .data(series)
+        .enter().append("g")
+        .attr("class", "series");
+
+      seriesGD.append("path")
+        .attr("fill", "none")
+        .attr("stroke-width", 2)
+        .attr("stroke", function(d) { return color(d.name); })
+        .attr("d", function(d) { return lineD(d.values); });
+
+      seriesGD.append("text")
+        .datum(function(d) { return { name: d.name, last: d.values[d.values.length - 1] }; })
+        .attr("x", function(d) { return xD(d.last.date) + 6; })
+        .attr("y", function(d) { return yD(d.last.value); })
+        .attr("dominant-baseline", "middle")
+        .attr("fill", function(d) { return color(d.name); })
+        .text(function(d) { return d.name; });
+
+      var markersGD = gD.append("g").attr("id", "symbols-c-2");
+      var markerGD = markersGD.selectAll(".marker")
+        .data(markersData)
+        .enter().append("g")
+        .attr("class", "marker");
+
+      markerGD.append("circle")
+        .attr("r", 5)
+        .attr("cx", function(d) { return xD(d.date); })
+        .attr("cy", function(d) { return yD(d.value); })
+        .attr("fill", function(d) { return color(d.name); })
+        .attr("stroke", function(d) { return color(d.name); })
+        .attr("stroke-width", 2);
+
+      markerGD.append("text")
+        .attr("x", function(d) { return xD(d.date); })
+        .attr("y", function(d) { return yD(d.value) - 8; })
+        .attr("text-anchor", "middle")
+        .attr("font-size", "10px")
+        .attr("fill", function(d) { return color(d.name); })
+        .text(function(d) { return d.rank; });
+
+      var xAxisGD = gD.append("g")
+        .attr("id", "x-axis-c-2")
+        .attr("transform", "translate(0," + innerHeight + ")")
+        .call(xAxisD);
+
+      xAxisGD.append("text")
+        .attr("x", innerWidth / 2)
+        .attr("y", 35)
+        .attr("text-anchor", "middle")
+        .text("Month");
+
+      var yAxisGD = gD.append("g")
+        .attr("id", "y-axis-c-2")
+        .call(yAxisD);
+
+      yAxisGD.append("text")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -innerHeight / 2)
+        .attr("y", -50)
+        .attr("text-anchor", "middle")
+        .text("Num of Ratings");
+
+      var legendD = svgD.append("g")
+        .attr("id", "legend-c-2")
+        .attr("transform", "translate(" + (width - 55) + "," + (height - 45) + ")");
+
+      legendD.append("circle")
+        .attr("r", 5)
+        .attr("cx", 0)
+        .attr("cy", 0)
+        .attr("fill", "#fff")
+        .attr("stroke", "#333")
+        .attr("stroke-width", 2);
+
+      legendD.append("text")
+        .attr("x", 0)
+        .attr("y", -8)
+        .attr("text-anchor", "middle")
+        .text("rank");
+
+      
+    }).catch(function(error) { console.log(error); });
+  })();
+  </script>
+  <div id='signature' style="position: fixed; right: 10px; bottom: 10px;">jholman6</div>
 </body>
