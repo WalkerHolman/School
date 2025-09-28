@@ -4,6 +4,12 @@
     <!-- add title -->
     
     <!-- import required libraries here -->
+    <script type="text/javascript" src="../lib/d3.v5.min.js"></script>
+    <script type="text/javascript" src="../lib/d3-dsv.min.js"></script>
+    <script type="text/javascript" src="../lib/topojson.v2.min.js"></script>
+    <script type="text/javascript" src="../lib/d3-tip.min.js"></script>
+    <script type="text/javascript" src="../lib/d3-legend.min.js"></script>
+    <script type="text/javascript" src="../lib/d3-geo-projection.v2.min.js"></script>
     
     <style>
         /* define CSS rules here */
@@ -16,6 +22,7 @@
 
 <body>
     <!-- Add heading for the visualization -->
+    <h2 id="heading">Wildlife Trafficking Incidents</h2>
     
     <!-- Create dropdown element here. Options should be added after reading in wildlife_trafficking file, they should not be created here.-->
 
@@ -23,28 +30,74 @@
     <script>
     
         // enter code to define margin and dimensions for svg
+        var margin = { top: 20, right: 20, bottom: 40, left: 40 };
+        var width = 960 - margin.left - margin.right;
+        var height = 600 - margin.top - margin.bottom;
         
         // enter code to create svg
+        var svg = d3.select('body')
+            .append('svg')
+            .attr('id', 'choropleth')
+            .attr('width', width + margin.left + margin.right)
+            .attr('height', height + margin.top + margin.bottom)
+          .append('g')
+            .attr('id', 'container')
+            .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
+
+        // root svg selection and countries group (per DOM spec)
+        var svgRoot = d3.select('#choropleth');
+        var countriesG = svgRoot.append('g')
+          .attr('id', 'countries')
+          .attr('transform', 'translate(' + margin.left + ',' + margin.top + ')');
         
         // enter code to create color scale
+        // color scale placeholder (will be created per selected year using quantiles)
+        var quantileColors = ['#deebf7','#9ecae1','#6baed6','#3182bd'];
+        var format2 = d3.format('.2f');
         
         // enter code to define tooltip
+        var tooltip = d3.select('body')
+          .append('div')
+          .attr('id', 'tooltip')
+          .style('position', 'absolute')
+          .style('pointer-events', 'none')
+          .style('padding', '6px 8px')
+          .style('background', 'rgba(0,0,0,0.7)')
+          .style('color', '#fff')
+          .style('border-radius', '4px')
+          .style('font-size', '12px')
+          .style('display', 'none');
         
         // enter code to define projection and path required for Choropleth
         // For grading, set the name of functions for projection and path as "projection" and "path"
-        // var projection = 
-        // var path =
+        var projection = d3.geoNaturalEarth1()
+            .scale((width) / (2 * Math.PI))
+            .translate([width / 2, height / 2]);
+        var path = d3.geoPath().projection(projection);
 
 
         // define any other global variables 
+        var yearDropdown = null;
+        var incidentsByYearCountry = {};
+        var incidentsByCountryAllYears = {};
+        var selectedCountry = null;
 
         Promise.all([
-            // enter code to read files
-            
-        ]).then(
-            // enter code to call ready() with required arguments
-            
-        );
+            d3.json('data/world_countries.json'),
+            d3.dsv(',', 'data/wildlife_trafficking.csv', function(d){
+                return {
+                    Year: +d.Year,
+                    Country: d['Country of Incident'],
+                    Number_of_Incidents: +d.Number_of_Incidents || 0,
+                    Average_Fine: d.Average_Fine === '' ? null : +d.Average_Fine,
+                    Average_Imprisonment: d.Average_Imprisonment === '' ? null : +d.Average_Imprisonment
+                };
+            })
+        ]).then(function(results){
+            ready(null, results[0], results[1]);
+        }).catch(function(error){
+            ready(error);
+        });
         
         // this function should be called once the data from files have been read
         // world: topojson from world_countries.json
@@ -52,19 +105,166 @@
         
         function ready(error, world, traffickingData) {
             // enter code to extract required fields from traffickingData
+            var years = Array.from(new Set(traffickingData.map(function(d){ return d.Year; }))).sort();
+
+            // group incidents by year-country for quick lookup
+            incidentsByYearCountry = {};
+            years.forEach(function(y){ incidentsByYearCountry[y] = {}; });
+            traffickingData.forEach(function(d){
+                incidentsByYearCountry[d.Year][d.Country] = d.Number_of_Incidents;
+            });
+
+            // group by country across all years for legend quartiles
+            incidentsByCountryAllYears = {};
+            traffickingData.forEach(function(d){
+                if (!incidentsByCountryAllYears[d.Country]) incidentsByCountryAllYears[d.Country] = [];
+                // include zeros; ensure numeric
+                incidentsByCountryAllYears[d.Country].push(+d.Number_of_Incidents || 0);
+            });
 
             // enter code to append the years to the dropdown
+            yearDropdown = d3.select('body')
+              .insert('select', '#choropleth')
+              .attr('id', 'yearDropdown');
+            yearDropdown.selectAll('option')
+              .data(years)
+              .enter()
+              .append('option')
+              .attr('value', function(d){ return d; })
+              .text(function(d){ return d; });
             
             // event listener for the dropdown. Update choropleth and legend when selection changes. Call createMapAndLegend() with required arguments.
+            yearDropdown.on('change', function(){
+                var y = +this.value;
+                createMapAndLegend(world, traffickingData, y);
+            });
+            // create Choropleth with default option. Call createMapAndLegend() with required arguments.
+            createMapAndLegend(world, traffickingData, years[0]);
             
-            // create Choropleth with default option. Call createMapAndLegend() with required arguments. 
+            // credit beneath map as SVG text element
+            svgRoot.append('text')
+              .attr('id', 'credit')
+              .attr('x', margin.left + width / 2)
+              .attr('y', margin.top + height + 20)
+              .attr('text-anchor', 'middle')
+              .text('jholman6');
         }
 
         // this function should create a Choropleth and legend using the world and traffickingData arguments for a selectedYear
         // also use this function to update Choropleth and legend when a different year is selected from the dropdown
         function createMapAndLegend(world, traffickingData, selectedYear){ 
-        
-            
+            // clear previous
+            countriesG.selectAll('path').remove();
+            svgRoot.selectAll('#legend').remove();
+            svgRoot.select('#legend-defs').remove();
+
+            // build geo features from world geojson
+            var countries = (world.features) ? world.features : topojson.feature(world, world.objects.countries).features;
+
+            // fit projection to features (ensures proper sizing)
+            projection.fitSize([width, height], { type: 'FeatureCollection', features: countries });
+            path.projection(projection);
+
+            // compute quantile color scale for the selected year using only positive incident counts
+            var valuesPos = [];
+            var byCountry = incidentsByYearCountry[selectedYear] || {};
+            d3.keys(byCountry).forEach(function(c){
+                var v = byCountry[c] || 0;
+                if (v > 0) valuesPos.push(v);
+            });
+            var color = d3.scaleQuantile()
+              .range(quantileColors);
+            if (valuesPos.length > 0) {
+              color.domain(valuesPos);
+            } else {
+              color.domain([0, 1]);
+            }
+
+            // build lookup for tooltip: average fine and imprisonment by country for the selected year
+            var averageFineByCountry = {};
+            var averageImprisonmentByCountry = {};
+            traffickingData.forEach(function(d){
+                if (d.Year === selectedYear) {
+                    averageFineByCountry[d.Country] = (d.Average_Fine != null) ? d.Average_Fine : null;
+                    averageImprisonmentByCountry[d.Country] = (d.Average_Imprisonment != null) ? d.Average_Imprisonment : null;
+                }
+            });
+
+            countriesG.selectAll('path')
+              .data(countries)
+              .enter()
+              .append('path')
+              .attr('class', 'country')
+              .attr('d', path)
+              .attr('fill', function(d){
+                  var name = (d.properties && (d.properties.name || d.properties.ADMIN || d.properties.Country)) || '';
+                  var val = (byCountry[name] != null) ? byCountry[name] : null;
+                  return (val > 0) ? color(val) : '#cccccc';
+              })
+              .on('mousemove', function(d){
+                  var name = (d.properties && (d.properties.name || d.properties.ADMIN || d.properties.Country)) || '';
+                  var val = (byCountry[name] != null) ? byCountry[name] : null;
+                  var averageFine = (averageFineByCountry[name] != null) ? averageFineByCountry[name] : null;
+                  var averageImprisonment = (averageImprisonmentByCountry[name] != null) ? averageImprisonmentByCountry[name] : null;
+                  tooltip.style('display', 'block')
+                    .style('left', (d3.event.pageX + 10) + 'px')
+                    .style('top', (d3.event.pageY + 10) + 'px')
+                    // format2 is a function that formats the values to 2 decimal places. If the value is null, it should be "N/A".
+                    .html('<strong>' + name + '<br/>Year: ' + selectedYear + '</strong><br/>Number of Incidents: ' + (val != null ? format2(val) : "N/A") + '<br/>Average Fine (USD): ' + (averageFine != null ? format2(averageFine) : "N/A") + '<br/>Average Imprisonment (Years): ' + (averageImprisonment != null ? format2(averageImprisonment) : "N/A"));
+              })
+              .on('mouseout', function(){ tooltip.style('display', 'none'); })
+              .on('click', function(d){
+                  var name = (d.properties && (d.properties.name || d.properties.ADMIN || d.properties.Country)) || '';
+                  selectedCountry = name;
+                  updateVerticalLegend(selectedCountry);
+              });
+
+            // Create vertical legend container; will be populated on country selection
+            svgRoot.append('g')
+              .attr('id', 'legend')
+              .attr('transform', 'translate(' + (margin.left + width - 100) + ',' + (margin.top + 20) + ')');
+
+            // if a country was previously selected, refresh legend
+            if (selectedCountry) updateVerticalLegend(selectedCountry);
+
+            function updateVerticalLegend(countryName){
+              var g = svgRoot.select('#legend');
+              g.selectAll('*').remove();
+              var vals = (incidentsByCountryAllYears[countryName] || []).slice().map(function(v){ return +v || 0; }).sort(d3.ascending);
+              if (!vals.length) return;
+              var minV = d3.min(vals), maxV = d3.max(vals);
+              var q1 = d3.quantileSorted(vals, 0.25) || 0;
+              var q2 = d3.quantileSorted(vals, 0.50) || 0;
+              var q3 = d3.quantileSorted(vals, 0.75) || 0;
+              var binsV = [minV, q1, q2, q3, maxV];
+
+              var legendHeight = 120, legendWidth = 16;
+              var binH = legendHeight / 4;
+              // Draw 4 rectangles from bottom to top with map colors (low -> high)
+              for (var i = 0; i < 4; i++) {
+                g.append('rect')
+                  .attr('x', 0)
+                  .attr('y', legendHeight - (i + 1) * binH)
+                  .attr('width', legendWidth)
+                  .attr('height', binH - 2)
+                  .attr('fill', quantileColors[i]);
+              }
+              // Labels for thresholds (2 decimals)
+              g.selectAll('text.legend-label')
+                .data(binsV)
+                .enter().append('text')
+                .attr('class','legend-label')
+                .attr('x', legendWidth + 6)
+                .attr('y', function(_, i){ return legendHeight - i * binH; })
+                .attr('dominant-baseline', 'middle')
+                .text(function(d){ return (d != null ? format2(d) : 'N/A'); });
+              // Title
+              g.append('text')
+                .attr('x', 0)
+                .attr('y', -6)
+                .style('font-weight','bold')
+                .text('Quartiles: ' + countryName);
+            }
         }
     </script>
 
